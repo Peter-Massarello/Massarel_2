@@ -12,12 +12,12 @@ void help_menu() {
 }
 
 
-void print_file(){
+void print_file(char *file_name){
 	FILE *fp;
 	char ch;
 	int count = 0;
 
-	fp = fopen("bin_adder", "r");
+	fp = fopen(file_name, "r");
 	if (fp == NULL) 
 	{
 		errno = 2;
@@ -56,7 +56,7 @@ int main(int argc, char* argv[]){
 				help_menu();
 				break;
 			case 'p':
-				print_file();
+				print_file(argv[argc - 1]);
 				break;
 		}
 	}
