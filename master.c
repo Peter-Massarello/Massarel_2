@@ -5,13 +5,38 @@
 #include <stdbool.h>
 #include <errno.h>
 
+extern int errno;
 
 void help_menu() {
 	printf("HELP MENU TO BE ADDED HERE\n\n");
 }
 
 
+void print_file(){
+	FILE *fp;
+	char ch;
+	int count = 0;
 
+	fp = fopen("bin_adder", "r");
+	if (fp == NULL) 
+	{
+		errno = 2;
+		perror("Error: ");
+	}
+	else
+	{
+		while((ch = fgetc(fp)) != EOF)
+		{
+			if (ch == ' ' || ch == '\n')
+				count++;
+			else
+			{
+				
+			}
+		}
+	}
+	printf("%d\n", count);
+}
 
 int main(int argc, char* argv[]){
 
@@ -22,13 +47,16 @@ int main(int argc, char* argv[]){
 		printf("Program called with no arguments, use ./master -h for help\n");
 		return 0;
 	}
-	while((opt = getopt(argc, argv, "h")) != -1)
+	while((opt = getopt(argc, argv, "hp")) != -1)
 	{
 		system("clear");
 		switch(opt)
 		{
 			case 'h':
 				help_menu();
+				break;
+			case 'p':
+				print_file();
 				break;
 		}
 	}
