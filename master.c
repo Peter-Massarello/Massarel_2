@@ -5,6 +5,11 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <math.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/types.h>
+
+#define SHM_KEY 1234
 
 extern int errno;
 int new_count;
@@ -56,6 +61,7 @@ int get_num_count(char *file_name){
 	{
 		errno = 2;
 		perror("master: Error: File name not found ");
+		exit(0);
 	}
 	else
 	{
@@ -115,6 +121,36 @@ int main(int argc, char* argv[]){
 
 	is_power_of_2(count);
 	printf("%d\n", new_count);
+
+//****************************************************************************************
+//
+//	Creates valid shared memory
+//
+//****************************************************************************************
+
+	int shmid;
+	int *shmptr;
+	char *rm_buffer = "ipcrm -M 1234 | echo removed shared memory at the key i think";
+	
+	shmid = shmget(SHM_KEY, sizeof(int) * new_count, IPC_CREAT | 0666);
+	
+	if (shmid < 0)
+	{
+		errno = 5;
+		perror("master: Error: Could not create shared memory");
+		exit(0);
+	}
+	
+	shmptr = shmat(shmid, NULL, 0);
+	
+	if (shmptr == (void *) -1)
+	{
+		errno = 5;
+		perror("master: Error: Could not attach shared memory");
+		exit(0);
+	}
+
+	system(rm_buffer);
 
 	return 0;
 }
