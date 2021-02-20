@@ -4,8 +4,10 @@
 #include <getopt.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <math.h>
 
 extern int errno;
+int new_count;
 
 void help_menu() {
 	printf("HELP MENU:\n\n");
@@ -13,15 +15,34 @@ void help_menu() {
 	printf("OPTION [-");
 }
 
-int power_of_2_check(int num){
+void is_power_of_2(int num){
+	bool flag = false;
 	if (num == 0)
-		return 0;
+	{
+		errno = 5;
+		perror("master: Error: No numbers in file, no sum");
+		exit(0);
+	}
 	else if (num == 1)
-		return 1;
-	else if (num % 2 == 0)
-		return 2;
-	else if (num % 2 != 0)
-		return 3;
+	{
+		printf("Only one number in datafile\nSum is that number\n\n");
+		exit(0);
+	}
+	else if (ceil(log2(num)) == floor(log2(num)))
+		new_count = num;
+	else
+	{
+		while(!flag)
+		{
+			num++;
+			if (ceil(log2(num)) == floor(log2(num)))
+			{
+				new_count = num;
+				flag = true;
+			}	
+		}
+	
+	}
 	
 }
 
@@ -34,7 +55,7 @@ int get_num_count(char *file_name){
 	if (fp == NULL) 
 	{
 		errno = 2;
-		perror("Error: ");
+		perror("master: Error: File name not found ");
 	}
 	else
 	{
@@ -59,38 +80,7 @@ int main(int argc, char* argv[]){
 		printf("Program called with no arguments, use ./master -h for help\n");
 		return 0;
 	}
-	// Get total number count from number file
-	count = get_num_count(argv[argc-1]);
-
-//****************************************************************************************
-//
-//	Performs the check on the count of numbers from the data file
-//	If number is not a power of 2, adds zeros to make up for it
-//
-//****************************************************************************************
-
-	if (power_of_2_check(count) == 0)
-	{
-		errno = 22;
-		perror("Error: There were no numbers in the file");
-		return 0;
-	}
-	else if (power_of_2_check(count) == 1)
-	{
-		errno = 22;
-		perror("Error: Only one number in file, sum is that number");
-		return 0;
-	}
-	else if (power_of_2_check(count) == 2)
-	{
-		slot_num = count;
-		printf("%s\n", slot_num);
-	}
-	else if (power_of_2_check(count) == 3)
-	{
-		printf("Number is not a power of 2\n");
-	}
-
+	
 //**************************************************************************************
 //
 //	Uses getopt to loop through arguments given and perform the appropriate option
@@ -113,5 +103,18 @@ int main(int argc, char* argv[]){
 				break;
 		}
 	}
+	
+//****************************************************************************************
+//
+//	Performs the check on the count of numbers from the data file
+//	If number is not a power of 2, adds zeros to make up for it
+//
+//****************************************************************************************
+	// Get total number count from number file
+	count = get_num_count(argv[argc-1]);
+
+	is_power_of_2(count);
+	printf("%d\n", new_count);
+
 	return 0;
 }
