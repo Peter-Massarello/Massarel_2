@@ -1,10 +1,13 @@
+#define _XOPEN_SOURCE 700
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
 #include <stdbool.h>
+#include <string.h>
 #include <errno.h>
 #include <math.h>
+#include <signal.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/types.h>
@@ -13,6 +16,13 @@
 
 extern int errno;
 int new_count;
+int max_children = 20; // Default
+int max_time = 100; // Default
+
+void ctrl_c(){
+	printf("Signal caught\n");
+	exit(0);
+}
 
 void help_menu() {
 	printf("HELP MENU:\n\n");
@@ -71,13 +81,18 @@ int get_num_count(char *file_name){
 				count++;
 		}
 	}
+	fclose(fp);
 	return count;
 }
 
 int main(int argc, char* argv[]){
-	int max_children = 20; // Default
-	int max_time = 100; // Default
-	int count, opt, slot_num;
+	int count, opt, slot_num, shmid, index, shmindex;
+	char buf[100];
+	int *shmptr;
+	char ch;
+	FILE *fp;
+
+	signal(SIGINT, ctrl_c);
 
 	// If no arguments given end program, otherwise move on
 	if (argc == 1)
@@ -116,6 +131,7 @@ int main(int argc, char* argv[]){
 //	If number is not a power of 2, adds zeros to make up for it
 //
 //****************************************************************************************
+
 	// Get total number count from number file
 	count = get_num_count(argv[argc-1]);
 
@@ -127,10 +143,6 @@ int main(int argc, char* argv[]){
 //	Creates valid shared memory
 //
 //****************************************************************************************
-
-	int shmid;
-	int *shmptr;
-	char *rm_buffer = "ipcrm -M 1234 | echo removed shared memory at the key i think";
 	
 	shmid = shmget(SHM_KEY, sizeof(int) * new_count, IPC_CREAT | 0666);
 	
@@ -141,16 +153,56 @@ int main(int argc, char* argv[]){
 		exit(0);
 	}
 	
-	shmptr = shmat(shmid, NULL, 0);
+	shmptr = (int *)shmat(shmid, 0, 0);
 	
-	if (shmptr == (void *) -1)
+	if (shmptr == (int *) -1)
 	{
 		errno = 5;
 		perror("master: Error: Could not attach shared memory");
 		exit(0);
 	}
 
-	system(rm_buffer);
+//***************************************************************************************
+//
+//	Writes numbers from data file into shared memory
+//
+//***************************************************************************************
+
+	fp = fopen("datafile", "r");
+	if (fp == NULL)
+	{
+		errno = 2;
+		perror("master: Error: File could not be found");
+		exit(0);
+	}
+	// Set both indexes to 0
+	index = 0; 
+	shmindex = 0;
+	while((ch = fgetc(fp)) != EOF)
+	{
+		if (ch != '\n')
+		{
+			buf[index] = ch;
+			index++;
+		}
+		else
+		{
+			buf[index] = '\0';
+			shmptr[shmindex] = atoi(buf);
+			printf("%d\n", shmptr[shmindex]);
+			shmindex++;
+			index = 0;	
+		}
+	}
+	fclose(fp);
+	for (int i = shmindex; i < new_count; i++)
+	{
+		shmptr[i] = 0;
+		printf("%d\n", shmptr[i]);
+	}
+	
+	execvp("bin_adder.c", argv);
+	shmctl(shmid, IPC_RMID, NULL);
 
 	return 0;
 }
