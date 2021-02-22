@@ -24,6 +24,11 @@ void ctrl_c(){
 	exit(0);
 }
 
+void exit_func(){
+	printf("Program exectuion time has run out\n");	
+	exit(0);
+}
+
 void help_menu() {
 	printf("HELP MENU:\n\n");
 	printf("PROGRAM OPTIONS:\n");
@@ -86,13 +91,15 @@ int get_num_count(char *file_name){
 }
 
 int main(int argc, char* argv[]){
-	int count, opt, slot_num, shmid, index, shmindex;
+	int count, opt, slot_num, shmid, index, shmindex;	
 	char buf[100];
-	int *shmptr;
 	char ch;
+	char *time_buf;
+	int *shmptr;
 	FILE *fp;
 
 	signal(SIGINT, ctrl_c);
+	signal(SIGALRM, exit_func);
 
 	// If no arguments given end program, otherwise move on
 	if (argc == 1)
@@ -108,7 +115,7 @@ int main(int argc, char* argv[]){
 //
 //**************************************************************************************
 
-	while((opt = getopt(argc, argv, "hs:i:")) != -1)
+	while((opt = getopt(argc, argv, "hs:t:")) != -1)
 	{
 		system("clear");
 		switch(opt)
@@ -117,10 +124,15 @@ int main(int argc, char* argv[]){
 				help_menu();
 				break;
 			case 's':
-				printf("-s function placeholder\n\n");
+				max_children = *optarg;
+				printf("Children set...\n\n");
 				break;
-			case 'i':
-				printf("-i function placeholder\n\n");
+			case 't':
+				time_buf = optarg;
+				max_time = atoi(time_buf);
+				alarm(max_time);
+				printf("%d\n", max_time);
+				printf("Time set...\n\n");
 				break;
 		}
 	}
@@ -131,7 +143,7 @@ int main(int argc, char* argv[]){
 //	If number is not a power of 2, adds zeros to make up for it
 //
 //****************************************************************************************
-
+	sleep(300);
 	// Get total number count from number file
 	count = get_num_count(argv[argc-1]);
 
@@ -143,8 +155,8 @@ int main(int argc, char* argv[]){
 //	Creates valid shared memory
 //
 //****************************************************************************************
-	
-	shmid = shmget(SHM_KEY, sizeof(int) * new_count, IPC_CREAT | 0666);
+	key_t key = ftok("./README.md", 'a');	
+	shmid = shmget(key, sizeof(int) * new_count, IPC_CREAT | 0666);
 	
 	if (shmid < 0)
 	{
@@ -200,9 +212,11 @@ int main(int argc, char* argv[]){
 		shmptr[i] = 0;
 		printf("%d\n", shmptr[i]);
 	}
-	
-	execvp("bin_adder.c", argv);
-	shmctl(shmid, IPC_RMID, NULL);
+	char pass_buf[50];
+	sprintf(pass_buf, "%d", new_count);
+	printf("%s\n", pass_buf);
+	execl("./bin_adder", "0", "0", pass_buf, NULL);
+	printf("Past exec\n");	
 
 	return 0;
 }

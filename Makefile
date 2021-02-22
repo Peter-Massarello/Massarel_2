@@ -1,10 +1,16 @@
 CC = gcc
 CFLAGS = -std=c99
-master: master.c
-	$(CC) -o $@ $^ $(CFLAGS) -lm
 
-bin_adder: bin_adder.c
-	$(CC) -o $@ $^ $(CFLAGS)
+all: master bin_adder
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+master: master.o
+	$(CC) $(CFLAGS) $< -o $@ -lm
+
+bin_adder: bin_adder.o
+	$(CC) $(CFLAGS) $< -o $@
 
 clean:
-	rm -f master
+	rm -f *.o master bin_adder
