@@ -20,12 +20,10 @@ extern int errno;
 int main(int argc, char *argv[]){
 	int index = atoi(argv[1]);
 	int depth = atoi(argv[2]);
-	int arr_size = atoi(argv[3]);
+	int arr_size = atoi(argv[2]);
 
 	int shmid;
 	int *shmptr;
-
-	printf("%d\n", arr_size);
 
 	key_t key = ftok("./README.md", 'a');
 	shmid = shmget(key, sizeof(int) * arr_size, IPC_EXCL | 0666);
@@ -35,7 +33,6 @@ int main(int argc, char *argv[]){
 		perror("master: Error: Shared memory could not be created");
 		exit(0);
 	}
-
 	shmptr = (int *)shmat(shmid, 0 ,0);
 	if (shmptr == (int *)-1)
 	{
@@ -43,8 +40,9 @@ int main(int argc, char *argv[]){
 		perror("master: Error: Shared memory could not be attached");
 		exit(0);
 	}
+	
 
-	printf("%d\n", shmptr[0]);
+
 	shmctl(shmid, IPC_RMID, NULL);
 	return 0;
 }

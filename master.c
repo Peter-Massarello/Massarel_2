@@ -16,7 +16,7 @@
 
 extern int errno;
 int new_count;
-int max_children = 20; // Default
+int max_children = 19; // Default
 int max_time = 100; // Default
 
 void ctrl_c(){
@@ -66,6 +66,13 @@ void is_power_of_2(int num){
 	
 }
 
+int get_depth(int nodes){
+	int temp;
+	temp = log2(nodes);
+
+	return temp;
+}
+
 int get_num_count(char *file_name){
 	FILE *fp;
 	char ch;
@@ -91,7 +98,7 @@ int get_num_count(char *file_name){
 }
 
 int main(int argc, char* argv[]){
-	int count, opt, slot_num, shmid, index, shmindex;	
+	int count, opt, slot_num, shmid, index, shmindex, depth;	
 	char buf[100];
 	char ch;
 	char *time_buf;
@@ -143,12 +150,13 @@ int main(int argc, char* argv[]){
 //	If number is not a power of 2, adds zeros to make up for it
 //
 //****************************************************************************************
-	sleep(300);
 	// Get total number count from number file
 	count = get_num_count(argv[argc-1]);
 
 	is_power_of_2(count);
 	printf("%d\n", new_count);
+
+	depth = get_depth(new_count);
 
 //****************************************************************************************
 //
@@ -201,7 +209,7 @@ int main(int argc, char* argv[]){
 		{
 			buf[index] = '\0';
 			shmptr[shmindex] = atoi(buf);
-			printf("%d\n", shmptr[shmindex]);
+			//printf("%d\n", shmptr[shmindex]);
 			shmindex++;
 			index = 0;	
 		}
@@ -210,12 +218,32 @@ int main(int argc, char* argv[]){
 	for (int i = shmindex; i < new_count; i++)
 	{
 		shmptr[i] = 0;
-		printf("%d\n", shmptr[i]);
+		//printf("%d\n", shmptr[i]);
 	}
-	char pass_buf[50];
-	sprintf(pass_buf, "%d", new_count);
-	printf("%s\n", pass_buf);
-	execl("./bin_adder", "0", "0", pass_buf, NULL);
+	char str[100]; // char buffer to turn ints into char arrays
+	snprintf(str, sizeof(str), "%d", new_count);
+
+//************************************************************************************
+//
+//	Goes through each depth of the array and calls the necessary indexes
+//
+//************************************************************************************
+
+	int power = 1;
+	int jump;
+	for (int i = depth; i > 0; i--)
+	{
+		printf("Depth is %d\n", i);
+		jump = pow(2, power); 
+		for (int j = 0; j < new_count; j = jump + j)
+		{
+			printf("%d\n", shmptr[j]);
+		}
+		printf("\n\n");
+		power++;
+	}
+
+	execlp("./bin_adder", "0", "0", str, (char *)0);
 	printf("Past exec\n");	
 
 	return 0;
