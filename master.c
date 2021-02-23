@@ -8,16 +8,22 @@
 #include <errno.h>
 #include <math.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/types.h>
 
 #define SHM_KEY 1234
 
+typedef enum {idle, want_in, in_cs} state;
+
 extern int errno;
-int new_count;
+int new_count, shmid, shmid2, shmid3;
+int *shmptr, *shmptr3;
+state *shmptr2;
 int max_children = 19; // Default
 int max_time = 100; // Default
+int shmid = 0;
 
 void ctrl_c(){
 	printf("Signal caught\n");
@@ -31,8 +37,18 @@ void exit_func(){
 
 void help_menu() {
 	printf("HELP MENU:\n\n");
+	printf("Program will take in a filename argument (datafile) and two optional arguments (-s, -t).\n");
+	printf("The program will use fork() and exec() to create multiple processes that will add up the sum of a full binary tree\n\n");
 	printf("PROGRAM OPTIONS:\n");
-	printf("OPTION [-");
+	printf("OPTION [-s]:\n");
+	printf("           When called, will set the max number of child processes. Default is 20 processes in total.\n");
+	printf("           Will create only up to 19 child processes, counting ./master in the total 20.\n");
+	printf("           If more than 20 is given, count resets to default\n");
+	printf("           EX: ./master -s 15 datafile\n\n");
+	printf("OPTION [-t]:\n");
+	printf("	   When called, will set the max life-time of the program. Default is 100 seconds.\n");
+	printf("           There is no max so whatever value given to -s will override default;\n");
+	printf("           EX: ./master -t 150 datafile\n\n");
 }
 
 void is_power_of_2(int num){
@@ -97,12 +113,16 @@ int get_num_count(char *file_name){
 	return count;
 }
 
+void max_check(int num){
+	if (num > 19)
+		max_children = 19; // Resets back to default if too many children are given
+}
+
 int main(int argc, char* argv[]){
-	int count, opt, slot_num, shmid, index, shmindex, depth;	
+	int count, opt, slot_num, index, shmindex, depth;	
 	char buf[100];
 	char ch;
-	char *time_buf;
-	int *shmptr;
+	char *opt_buf;
 	FILE *fp;
 
 	signal(SIGINT, ctrl_c);
@@ -131,12 +151,14 @@ int main(int argc, char* argv[]){
 				help_menu();
 				break;
 			case 's':
-				max_children = *optarg;
+				opt_buf = optarg;
+				max_children = atoi(opt_buf);
+				max_check(max_children);
 				printf("Children set...\n\n");
 				break;
 			case 't':
-				time_buf = optarg;
-				max_time = atoi(time_buf);
+				opt_buf = optarg;
+				max_time = atoi(opt_buf);
 				alarm(max_time);
 				printf("%d\n", max_time);
 				printf("Time set...\n\n");
@@ -220,15 +242,29 @@ int main(int argc, char* argv[]){
 		shmptr[i] = 0;
 		//printf("%d\n", shmptr[i]);
 	}
-	char str[100]; // char buffer to turn ints into char arrays
-	snprintf(str, sizeof(str), "%d", new_count);
+	
 
 //************************************************************************************
 //
 //	Goes through each depth of the array and calls the necessary indexes
 //
 //************************************************************************************
+	
+	pid_t wpid;
+	int status = 0;
 
+	/*if (fork() == 0)
+	{
+		
+	}	
+	else
+	{
+		while((wpid = wait(&status)) > 0);
+		printf("All children done and back into master\n");
+	}*/
+
+	char size[100];
+	snprintf(size, sizeof(size), "%d", new_count);
 	int power = 1;
 	int jump;
 	for (int i = depth; i > 0; i--)
@@ -237,13 +273,27 @@ int main(int argc, char* argv[]){
 		jump = pow(2, power); 
 		for (int j = 0; j < new_count; j = jump + j)
 		{
-			printf("%d\n", shmptr[j]);
+			if (fork() == 0)
+			{
+				
+				char index[100];
+				char depth[100];// char buffer to turn ints into char arrays
+				
+				snprintf(index, sizeof(index), "%d", j);
+				snprintf(depth, sizeof(depth), "%d", i);
+				execlp("./bin_adder", index, depth, size, (char *)0);
+			}
+			else
+			{
+				while((wpid = wait(&status)) > 0);
+				printf("%d\n", shmptr[j]);
+
+			}
 		}
 		printf("\n\n");
 		power++;
 	}
 
-	execlp("./bin_adder", "0", "0", str, (char *)0);
 	printf("Past exec\n");	
 
 	return 0;
