@@ -18,21 +18,49 @@
 typedef enum {idle, want_in, in_cs} state;
 
 extern int errno;
+pid_t *pid_list;
 int new_count, shmid, shmid2, shmid3;
-int *shmptr, *shmptr3;
-state *shmptr2;
+int pid_count = 0;
+int *shmptr;
+state *shmstate; // Holds state for each process, taken from Sol. 4
 int max_children = 19; // Default
 int max_time = 100; // Default
-int shmid = 0;
+
+void kill_pids(){
+	for (int i = 0; i < max_children; i++)
+	{
+		if(pid_list[i] != 0)
+			kill(pid_list[i], SIGKILL);
+	}
+
+}
+
+void kill_func(){
+	shmdt(shmptr);
+	shmctl(shmid, IPC_RMID, NULL);
+	kill_pids();
+	free(pid_list);
+}
+
 
 void ctrl_c(){
-	printf("Signal caught\n");
+	kill_func();
 	exit(0);
 }
 
-void exit_func(){
-	printf("Program exectuion time has run out\n");	
+void timer_func(){
+	kill_func();
 	exit(0);
+}
+
+void init_pid(){ // Sets all pid's to 0
+	for (int i = 0; i < max_children; i++)
+		pid_list[i] = 0;
+}
+
+void init_state(){ // Sets every process to idle
+	for (int i = 0; i < max_children; i++)
+		shmstate[i] = idle;
 }
 
 void help_menu() {
@@ -118,15 +146,75 @@ void max_check(int num){
 		max_children = 19; // Resets back to default if too many children are given
 }
 
+int find_empty(){
+	for (int i = 0; i < max_children; i++)
+	{
+		if (pid_list[i] == 0)
+			return i;
+	}
+}
+
+bool process_check(){
+	bool flag = true;
+	
+	for (int i = 0; i < max_children; i++)
+	{
+		if (pid_list[i] != 0)
+			flag = false;
+	}
+
+	return flag;
+}
+
+void remove_pid(pid_t pid){
+	for (int i = 0; i < max_children; i++)
+	{
+		if (pid_list[i] == pid)
+			pid_list[i] = 0;
+	}
+}
+
+void my_sigchild_handler(int sig){
+	pid_t p;
+	int status;
+
+	while((p = waitpid(-1, &status, WNOHANG)) != -1)
+	{
+		pid_count--;
+		remove_pid(p);
+
+	}
+
+}
+
 int main(int argc, char* argv[]){
+
+//******************************************************************************************
+//
+//	Variable creation
+//
+//******************************************************************************************
 	int count, opt, slot_num, index, shmindex, depth;	
 	char buf[100];
 	char ch;
 	char *opt_buf;
 	FILE *fp;
+	
+
+//******************************************************************************************
+//
+//	Signal Creation
+//	
+//******************************************************************************************
 
 	signal(SIGINT, ctrl_c);
-	signal(SIGALRM, exit_func);
+	signal(SIGALRM, timer_func);
+	struct sigaction sa;
+
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = my_sigchild_handler;
+
+	sigaction(SIGCHLD, &sa, NULL);
 
 	// If no arguments given end program, otherwise move on
 	if (argc == 1)
@@ -172,6 +260,7 @@ int main(int argc, char* argv[]){
 //	If number is not a power of 2, adds zeros to make up for it
 //
 //****************************************************************************************
+
 	// Get total number count from number file
 	count = get_num_count(argv[argc-1]);
 
@@ -180,11 +269,15 @@ int main(int argc, char* argv[]){
 
 	depth = get_depth(new_count);
 
+	pid_list = malloc(sizeof(pid_t) * max_children);
+	init_pid();
+
 //****************************************************************************************
 //
 //	Creates valid shared memory
 //
 //****************************************************************************************
+
 	key_t key = ftok("./README.md", 'a');	
 	shmid = shmget(key, sizeof(int) * new_count, IPC_CREAT | 0666);
 	
@@ -203,6 +296,28 @@ int main(int argc, char* argv[]){
 		perror("master: Error: Could not attach shared memory");
 		exit(0);
 	}
+
+	key_t key2 = ftok("./Makefile", 'a');
+	shmid2 = shmget(key2, sizeof(state) * max_children, IPC_CREAT | 0666);
+	
+	if (shmid2 < 0)
+	{
+		errno = 5;
+		perror("master: Error: Could not create shared memory");
+		exit(0);
+	}
+	
+	shmstate = (state *)shmat(shmid2, 0, 0);
+	
+	if (shmstate == (state *) -1)
+	{
+		errno = 5;
+		perror("master: Error: Could not attach shared memory");
+	}
+
+	init_state();
+
+	key_t key3 = ftok("./datafile", 'a');
 
 //***************************************************************************************
 //
@@ -249,52 +364,76 @@ int main(int argc, char* argv[]){
 //	Goes through each depth of the array and calls the necessary indexes
 //
 //************************************************************************************
-	
-	pid_t wpid;
-	int status = 0;
 
-	/*if (fork() == 0)
-	{
-		
-	}	
-	else
-	{
-		while((wpid = wait(&status)) > 0);
-		printf("All children done and back into master\n");
-	}*/
-
-	char size[100];
-	snprintf(size, sizeof(size), "%d", new_count);
+	char sizestr[50];
+	char depthstr[50];
+	char indexstr[50];
+	snprintf(sizestr, sizeof(sizestr), "%d", new_count); // Creates string param of the size of nodes
 	int power = 1;
 	int jump;
+	int list_index;
+	bool depth_complete = false;
+
 	for (int i = depth; i > 0; i--)
 	{
-		printf("Depth is %d\n", i);
-		jump = pow(2, power); 
-		for (int j = 0; j < new_count; j = jump + j)
+		while (pid_count != 0)
 		{
-			if (fork() == 0)
-			{
-				
-				char index[100];
-				char depth[100];// char buffer to turn ints into char arrays
-				
-				snprintf(index, sizeof(index), "%d", j);
-				snprintf(depth, sizeof(depth), "%d", i);
-				execlp("./bin_adder", index, depth, size, (char *)0);
-			}
-			else
-			{
-				while((wpid = wait(&status)) > 0);
-				printf("%d\n", shmptr[j]);
-
-			}
+			if (process_check()) // Resets count back to zero if count gets desynched from pid_list
+				pid_count = 0;
 		}
-		printf("\n\n");
+		depth_complete = false;
+		printf("Current Depth is %d\n", i);
+		snprintf(depthstr, sizeof(depthstr), "%d", i); // Creates string param of the current depth
+		jump = pow(2, power);
+		do {
+			if (pid_count == 0) // Initial check to start creation of process
+			{
+				for (int j = 0; j < new_count; j = jump + j)
+				{
+					if (pid_count < max_children)
+					{
+						pid_count++;
+						snprintf(indexstr, sizeof(indexstr), "%d", j);
+						list_index = find_empty();
+						pid_list[list_index] = fork();
+
+						if (pid_list[list_index] == 0)
+						{
+							execlp("./bin_adder", indexstr, depthstr, sizestr, (char *)0);
+						}
+					}
+				}
+				depth_complete = true;
+			}
+		} while(!depth_complete);
 		power++;
 	}
+	
+	/*for (int i = depth; i > 0; i--)
+	{
+		printf("Depth is %d\n", i);
+		snprintf(depthstr, sizeof(depthstr), "%d", i); // Creates string param of the current depth
+		jump = pow(2, power); // Creates jump between indexes that will be added 
+		do {
+			if (pid_count == 0) // Initial check to start creation of processes
+			{
+				for (int j = 0; j < new_count; j = jump + j)
+				{
+						if (pid_count < max_children)
+						{
+							pid_count++; // Begin to create one more process
+							snprintf(indexstr, sizeof(indexstr), "%d", j); // Creates string param of the current index
+							if (fork() == 0)
+								execlp("./bin_adder", indexstr, depthstr, sizestr, (char *)0);	
+						}
+				}
+				break;
+			}
+		} while(1);
+		power++;
+	}*/
 
 	printf("Past exec\n");	
-
+	kill_func();
 	return 0;
 }
