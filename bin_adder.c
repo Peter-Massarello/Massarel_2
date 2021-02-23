@@ -7,6 +7,7 @@
 #include <string.h>
 #include <errno.h>
 #include <math.h>
+#include <time.h>
 #include <signal.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -18,7 +19,7 @@ extern int errno;
 
 typedef enum {idle, want_in, in_cs} state;
 
-int arrid, stateid, turnid, index, power;
+int arrid, stateid, turnid, index, power, id;
 int *arrptr;
 state *stateptr;
 int *turnptr;
@@ -32,11 +33,18 @@ void kill_func(){
 
 
 void crit_sec(){
-	printf("IN critical section\n");
+	FILE *fp;
+	time_t rawtime;
+	struct tm * timeinfo;
+
+	fp = fopen("./adder_log", "a");
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+	printf("IN critical section \n");
 	int next_index = index + pow(2, power);
 
-	printf("Index's being added are %d and %d\n", arrptr[index], arrptr[next_index]);
-
+	fprintf(fp, "Index's being added are %d and %d at the time of %s\n", arrptr[index], arrptr[next_index], asctime(timeinfo));
+	fclose(fp);
 	arrptr[index] = arrptr[index] + arrptr[next_index];
 }
 
@@ -44,7 +52,7 @@ int main(int argc, char *argv[]){
 	index = atoi(argv[0]);
 	int depth = atoi(argv[1]);
 	int arr_size = atoi(argv[2]);
-	int id = atoi (argv[3]);
+	id = atoi (argv[3]);
 	int max_children = atoi(argv[4]);
 	power = atoi(argv[5]);
 	power--;
