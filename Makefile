@@ -13,4 +13,4 @@ bin_adder: bin_adder.o
 	$(CC) $(CFLAGS) $< -o $@ -lm
 
 clean:
-	rm -f *.o master bin_adder adder_log
+	rm -f *.o master bin_adder adder_log datafile

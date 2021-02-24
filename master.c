@@ -13,7 +13,12 @@
 #include <sys/shm.h>
 #include <sys/types.h>
 
-#define SHM_KEY 1234
+//*****************************************************************************
+//
+//	Assingment 2, Peter Massarello CMPSCI 4760
+//	Due Date - 2/23/21
+//
+//*****************************************************************************
 
 typedef enum {idle, want_in, in_cs} state;
 
@@ -70,6 +75,9 @@ void init_state(){ // Sets every process to idle
 void help_menu() {
 	printf("HELP MENU:\n\n");
 	printf("Program will take in a filename argument (datafile) and two optional arguments (-s, -t).\n");
+	printf("Program will create a new datafile that it will pull numbers out of.\n");
+	printf("If datafile already exists, new runs will append new entries to the file\n");
+	printf("Reccomend using 'make clean' before every run of the program\n\n");
 	printf("The program will use fork() and exec() to create multiple processes that will add up the sum of a full binary tree\n\n");
 	printf("PROGRAM OPTIONS:\n");
 	printf("OPTION [-s]:\n");
@@ -81,6 +89,7 @@ void help_menu() {
 	printf("	   When called, will set the max life-time of the program. Default is 100 seconds.\n");
 	printf("           There is no max so whatever value given to -s will override default;\n");
 	printf("           EX: ./master -t 150 datafile\n\n");
+	exit(0);
 }
 
 void is_power_of_2(int num){
@@ -218,6 +227,12 @@ int main(int argc, char* argv[]){
 
 	sigaction(SIGCHLD, &sa, NULL);
 
+//******************************************************************************************
+//
+//	Loop that creates data file
+//
+//******************************************************************************************
+
 	// If no arguments given end program, otherwise move on
 	if (argc == 1)
 	{
@@ -225,16 +240,20 @@ int main(int argc, char* argv[]){
 		printf("Program called with no arguments, use ./master -h for help\n");
 		return 0;
 	}
+
+	for (int i = 0; i < 32; i++)
+	{
+		system("echo $((RANDOM % 256)) >> datafile");
+	}
 	
 //**************************************************************************************
 //
 //	Uses getopt to loop through arguments given and perform the appropriate option
 //
 //**************************************************************************************
-
+	system("clear");
 	while((opt = getopt(argc, argv, "hs:t:")) != -1)
 	{
-		system("clear");
 		switch(opt)
 		{
 			case 'h':
@@ -250,7 +269,6 @@ int main(int argc, char* argv[]){
 				opt_buf = optarg;
 				max_time = atoi(opt_buf);
 				alarm(max_time);
-				printf("%d\n", max_time);
 				printf("Time set...\n\n");
 				break;
 		}
@@ -267,7 +285,6 @@ int main(int argc, char* argv[]){
 	count = get_num_count(argv[argc-1]);
 
 	is_power_of_2(count);
-	printf("%d\n", new_count);
 
 	depth = get_depth(new_count);
 
@@ -276,7 +293,7 @@ int main(int argc, char* argv[]){
 
 //****************************************************************************************
 //
-//	Creates valid shared memory
+//	Creates valid shared memory for array, state, and flag
 //
 //****************************************************************************************
 
@@ -377,7 +394,6 @@ int main(int argc, char* argv[]){
 	for (int i = shmindex; i < new_count; i++)
 	{
 		shmptr[i] = 0;
-		//printf("%d\n", shmptr[i]);
 	}
 	
 
@@ -407,7 +423,7 @@ int main(int argc, char* argv[]){
 				pid_count = 0;
 		}
 		depth_complete = false;
-		printf("Current Depth is %d\n", i);
+		printf("\nCurrent Depth is %d...\n", i);
 		snprintf(depthstr, sizeof(depthstr), "%d", i); // Creates string param of the current depth
 		jump = pow(2, power);
 		do {
@@ -430,14 +446,13 @@ int main(int argc, char* argv[]){
 						}
 					}
 				}
+				printf("\nDepth of %d complete...\n", i);
 				depth_complete = true;
 			}
 		} while(!depth_complete);
 		power++;
 	}
 	
-	
-	printf("Past exec\n");
 	printf("%d <- This is the final sum\n", (shmptr[0] + shmptr[new_count/2]));
 	kill_func();
 	return 0;

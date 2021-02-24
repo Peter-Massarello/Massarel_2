@@ -40,7 +40,6 @@ void crit_sec(){
 	fp = fopen("./adder_log", "a");
 	time(&rawtime);
 	timeinfo = localtime(&rawtime);
-	printf("IN critical section \n");
 	int next_index = index + pow(2, power);
 
 	fprintf(fp, "Index's being added are %d and %d at the time of %s\n", arrptr[index], arrptr[next_index], asctime(timeinfo));
