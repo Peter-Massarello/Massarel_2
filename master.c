@@ -241,7 +241,7 @@ int main(int argc, char* argv[]){
 		return 0;
 	}
 
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i < 64; i++)
 	{
 		system("echo $((RANDOM % 256)) >> datafile");
 	}
@@ -431,21 +431,30 @@ int main(int argc, char* argv[]){
 			{
 				for (int j = 0; j < new_count; j = jump + j)
 				{
-					if (pid_count < max_children)
+					while(1)
 					{
-						pid_count++;
-						snprintf(indexstr, sizeof(indexstr), "%d", j);
-						list_index = find_empty();
-						pid_list[list_index] = fork();
-						if (pid_list[list_index] == 0)
+						if (pid_count < max_children)
 						{
-							snprintf(chldstr, sizeof(chldstr), "%d", max_children);
-							snprintf(pwrstr, sizeof(pwrstr), "%d", power);
-							snprintf(idstr, sizeof(idstr), "%d", list_index);
-							execlp("./bin_adder", indexstr, depthstr, sizestr, idstr, chldstr, pwrstr, (char *)0);
+							pid_count++;
+							snprintf(indexstr, sizeof(indexstr), "%d", j);
+							list_index = find_empty();
+							pid_list[list_index] = fork();
+
+							if (pid_list[list_index] != 0)
+							{
+								break;
+							}
+							if (pid_list[list_index] == 0)
+							{
+								snprintf(chldstr, sizeof(chldstr), "%d", max_children);
+								snprintf(pwrstr, sizeof(pwrstr), "%d", power);
+								snprintf(idstr, sizeof(idstr), "%d", list_index);
+								execlp("./bin_adder", indexstr, depthstr, sizestr, idstr, chldstr, pwrstr, (char *)0);
+							}
 						}
+
 					}
-				}
+									}
 				printf("\nDepth of %d complete...\n", i);
 				depth_complete = true;
 			}
